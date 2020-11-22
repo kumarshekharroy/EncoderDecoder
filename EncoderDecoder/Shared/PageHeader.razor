@@ -1,0 +1,42 @@
+﻿@inject NavigationManager _NavigationManager
+@inject EncoderDecoder.Utilities.Pages _Pages
+
+@code {
+    [Parameter]
+    public PageInfo PageInfo { get; set; }
+}
+
+@if (PageInfo != null)
+{
+
+    <div class="py-3">
+        <div class="heading  flex-end">
+            <div class="mr-2">
+                <img class="d-block mx-auto" src="@PageInfo.Logo" alt="" width="72" height="72">
+            </div>
+            <div>
+                <h2 class="m-0">@PageInfo.Header</h2>
+            </div>
+        </div>
+        <h3 class="header-disc text-left">@PageInfo.Description</h3>
+    </div>
+
+
+}
+else
+{
+    <div class="py-3">
+        <div class="heading  flex-end">
+            <div class="mr-2">
+                <div class="d-block mx-auto" style="width:75px; height:75px">
+
+                </div> 
+            </div>
+            <div>
+                <h2 class="m-0"></h2>
+            </div>
+        </div>
+        <h3 class="header-disc-no-border text-left"></h3>
+    </div>
+
+}

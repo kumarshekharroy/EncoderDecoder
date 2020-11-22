@@ -1,0 +1,117 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager _NavigationManager
+@inject EncoderDecoder.Utilities.Pages _Pages
+@inject IJSRuntime JSRuntime;
+@inject AppState _AppState;
+
+
+
+<BlazoredToasts Position="ToastPosition.BottomRight"
+                Timeout="5"
+                IconType="IconType.FontAwesome"
+                SuccessClass="success-toast-override"
+                ErrorClass="error-toast-override"
+                InfoClass="info-toast-override"
+                WarningClass="warning-toast-override"
+                WarningIcon="fa fa-exclamation-triangle"
+                SuccessIcon="fa fa-thumbs-up"
+                InfoIcon="fa fa-info-circle"
+                ErrorIcon="fa fa-bug" />
+<SiteHeader />
+<style>
+</style>
+<div class="content-wrapper">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-sm-12">
+                <PageHeader PageInfo="@pageInfo" />
+            </div>
+            <div class="col-md-9 ">
+                @Body
+            </div>
+            <div class="col-md-3">
+                <SiteRightSidebar SelectedGroup="@SelectedGroup" SelectedPage="@pageInfo?.Route" />
+            </div>
+        </div>
+    </div>
+</div>
+<SiteFooter />
+
+
+
+
+
+@code
+{
+
+    protected override void OnInitialized()
+    {
+        HandleLocationChanged(null, null);
+        _NavigationManager.LocationChanged += HandleLocationChanged;
+        //_NavigationManager.NavigateTo("websocket-playground");
+    }
+
+    PageInfo pageInfo;
+    string SelectedGroup;
+    private async void HandleLocationChanged(object sender, LocationChangedEventArgs e)
+    {
+        var currentPagePath = _NavigationManager.ToBaseRelativePath(_NavigationManager.Uri);
+        //Console.WriteLine($"_NavigationManager.BaseUri : {_NavigationManager.BaseUri}");
+        // Console.WriteLine($"_NavigationManager.Uri : {_NavigationManager.Uri}");
+        //Console.WriteLine($"_NavigationManager.ToAbsoluteUri.Uri : {_NavigationManager.ToAbsoluteUri(_NavigationManager.Uri)}");
+        //Console.WriteLine($"_NavigationManager.ToAbsoluteUri.BaseUri : {_NavigationManager.ToAbsoluteUri(_NavigationManager.BaseUri)}");
+        //Console.WriteLine($"_NavigationManager.ToBaseRelativePath.Uri : {_NavigationManager.ToBaseRelativePath(_NavigationManager.Uri)}");
+        //Console.WriteLine($"_NavigationManager.ToBaseRelativePath.BaseUri : {_NavigationManager.ToBaseRelativePath(_NavigationManager.BaseUri)}");
+        ///Console.WriteLine($"currentPagePath : {currentPagePath}");
+
+
+        currentPagePath = currentPagePath.Split('/')[0];
+        var indexofQuestionMark = currentPagePath.IndexOf('?');
+        if (indexofQuestionMark != -1)
+        {
+            currentPagePath = currentPagePath[0..indexofQuestionMark];
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentPagePath))
+        {
+            Console.WriteLine("currentPagePath"+ currentPagePath);
+            pageInfo = _Pages.GetAllPages.Values.SelectMany(x => x).FirstOrDefault(x => x.Route == currentPagePath);
+            SelectedGroup = pageInfo?.Group.ToString();
+            if (pageInfo == null)
+                _NavigationManager.NavigateTo("");
+        }
+        else
+        {
+            var firstItem = _Pages.GetAllPages.FirstOrDefault();
+            SelectedGroup = firstItem.Key;
+        }
+
+        var domainName = _NavigationManager.BaseUri.Split("//", StringSplitOptions.RemoveEmptyEntries)[1].Trim('/');
+
+        if (pageInfo != null)
+        {
+            await JSRuntime.InvokeVoidAsync("setTitle", string.Concat(pageInfo.Title," | ", domainName).Trim().Trim('|'));
+            await JSRuntime.InvokeVoidAsync("setFevicon", pageInfo.Logo);
+
+        }
+        else
+        {
+            await JSRuntime.InvokeVoidAsync("setTitle", domainName);
+            await JSRuntime.InvokeVoidAsync("setFevicon", "images/encrypted.png");
+        }
+
+        _AppState.SetDomainName(domainName);
+
+        base.StateHasChanged();
+
+
+
+    }
+
+    public void Dispose()
+    {
+        _NavigationManager.LocationChanged -= HandleLocationChanged;
+    }
+
+}

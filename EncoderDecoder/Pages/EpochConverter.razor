@@ -1,0 +1,418 @@
+﻿@page "/epoch-converter"
+@using System.Threading;
+@using System.Globalization;
+@inject NavigationManager _NavigationManager;
+@inject Blazored.Localisation.Services.IBrowserDateTimeProvider browserDateTimeProvider
+
+
+<div class="row text-left mt-4">
+
+    <div class="col-sm-12 mb-5">
+
+        <sapn class="h5">The current Unix epoch time is</sapn>
+        <input disabled @onmouseover="()=>CurrentTimeInSec_InFocus=true" @onmouseout="()=>CurrentTimeInSec_InFocus=false" value="@CurrentTimeInSec" style="cursor:pointer" class="btn btn-outline-primary mx-2" />
+        @if (CurrentTimeInSec_InFocus)
+        {
+            <span style="color:lightgrey" class="fas @(FontAwesomeIcons.Pause)"></span>
+        }
+    </div>
+
+    <div class="col-sm-12 mb-5">
+        <p class="h4 lead mb-3">Convert epoch to human-readable date</p>
+        <div class="col-sm-6 mb-2 pl-0 input-group">
+            <input type="text" class="form-control" maxlength="20" spellcheck="false" autocomplete="off" @bind="EpochEnteredByUser" placeholder="Epoch Timestamp..." aria-label="Epoch Timestamp..." aria-describedby="basic-addon2">
+            <div class="input-group-append">
+                <span style="cursor:pointer" class="input-group-text  btn btn-outline-info" @onclick="CalculateTimestampToHumanDate" id="basic-addon2">Epoch Timestamp to Human date</span>
+            </div>
+        </div>
+        <h6 class=" mb-4"><small>Supports Unix timestamps in seconds, milliseconds, microseconds and nanoseconds.</small></h6>
+        <div class="pl-1">
+
+            @if (EpochEnteredByUser_CalcStatus == CalStatus.Success)
+            {
+                <h6 class="">Assuming that this timestamp is in <b>@EpochEnteredByUser_Type</b></h6>
+                <table class="">
+                    <tbody>
+                        <tr>
+                            <th>GMT</th>
+                            <td>: @EpochEnteredByUser_HumanReadable_GMT.ToString("dddd, dd MMMM yyyy hh:mm:ss tt")</td>
+                        </tr>
+                        <tr>
+                            <th>Your Time Zone</th>
+                            <td>: @EpochEnteredByUser_HumanReadable_Local.ToString("dddd, dd MMMM yyyy hh:mm:ss tt") <a class="text-decoration-none font-weight-bold" href="#">@EpochHelper.TimeZoneOffsetToTimeZone(_IBrowserDateTime.LocalTimeZoneInfo.BaseUtcOffset)</a></td>
+                        </tr>
+                        <tr>
+                            <th>Relative</th>
+                            <td>
+                                : @EpochEnteredByUser_DifferenceWithCurrent
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            }
+            else if (EpochEnteredByUser_CalcStatus == CalStatus.Failed)
+            {
+                <p>
+                    Sorry, this timestamp is not valid.
+                </p>
+                <p>
+                    Check your timestamp, strip letters and punctuation marks.
+                </p>
+            }
+
+        </div>
+    </div>
+
+
+
+
+
+
+
+    <div class="col-sm-12 mb-5">
+        <p class="h4 lead mb-3">Convert human-readable date to epoch</p>
+
+        <div>
+            <form class="form-row">
+                <div class="form-group col-md-1">
+                    <label for="name" class="control-label">Yr</label>
+                    <input type="number" @bind="@(HumanDateEnteredByUser.Year)" max="9999" min="0" placeholder="YYYY" required class="form-control">
+                </div>
+                <div class="form-group col-md-1">
+                    <label for="name" class="control-label">mon</label>
+                    <input type="number" @bind='@(HumanDateEnteredByUser.Month)' max="12" min="1" placeholder="MM" class="form-control">
+                </div>
+                <div class="form-group col-md-1">
+                    <label for="name" class="control-label">day</label>
+                    <input type="number" @bind='@(HumanDateEnteredByUser.Day)' max="31" min="1" placeholder="dd" class="form-control">
+                </div>
+                <div class="form-group col-md-1">
+                    <label for="name" class="control-label">hr</label>
+                    <input type="number" @bind='@(HumanDateEnteredByUser.Hour)' max="12" min="0" placeholder="hh" class="form-control">
+                </div>
+                <div class="form-group col-md-1">
+                    <label for="name" class="control-label">min</label>
+                    <input type="number" @bind='@(HumanDateEnteredByUser.Minute)' placeholder="mm" class="form-control">
+                </div>
+                <div class="form-group col-md-1">
+                    <label for="name" class="control-label">sec</label>
+                    <input type="number" @bind='@(HumanDateEnteredByUser.Second)' placeholder="ss" class="form-control">
+                </div>
+                <div class="form-group col-md-1">
+                    <label for="name" class="control-label">&nbsp;</label>
+                    <select class="form-control" @onchange="@OnAMPMChange" bind="@(HumanDateEnteredByUser.AMPM)">
+                        <option value="AM">AM</option>
+                        <option value="PM">PM</option>
+                    </select>
+                </div>
+                <div class="form-group col-md-1">
+                    <label for="name" class="control-label">&nbsp;</label>
+                    <select class="form-control" @onchange="OnLocalGMTChange" bind="@(HumanDateEnteredByUser.LocalGMT)">
+                        <option value="GMT">GMT</option>
+                        <option value="Local">Local</option>
+                    </select>
+                </div>
+                <div class="form-group col-md-1">
+                    <label for="name" class="control-label">&nbsp;</label>
+                    <button type="button" class="input-group-text  btn btn-outline-info" @onclick="CalculateHumanDateToEpochTimestamp">Human date to Epoch timestamp </button>
+                </div>
+
+            </form>
+        </div>
+        <div class="pl-1">
+
+            @if (HumanDateEnteredByUser_CalcStatus == CalStatus.Success)
+            {
+                <table class="">
+                    <tbody>
+                        <tr>
+                            <th>Epoch timestamp</th>
+                            <td>: @HumanDateEnteredByUser_EpochInSec</td>
+                        </tr>
+                        <tr>
+                            <th>Timestamp in millisecond</th>
+                            <td>: @HumanDateEnteredByUser_EpochInMilliSec</td>
+                        </tr>
+                        <tr>
+                            <th>Date and time (GMT)</th>
+                            <td>: @HumanDateEnteredByUser_InUTC.ToString("dddd, dd MMMM yyyy hh:mm:ss tt")</td>
+                        </tr>
+                        <tr>
+                            <th>Date and time (Your Time Zone)</th>
+                            <td>: @HumanDateEnteredByUser_InLocal.ToString("dddd, dd MMMM yyyy hh:mm:ss tt") <a class="text-decoration-none font-weight-bold" href="#">@EpochHelper.TimeZoneOffsetToTimeZone(_IBrowserDateTime.LocalTimeZoneInfo.BaseUtcOffset)</a></td>
+                        </tr>
+                        <tr>
+                            <th>Relative</th>
+                            <td>
+                                : @HumanDateEnteredByUser_DifferenceWithCurrent
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            }
+            else if (HumanDateEnteredByUser_CalcStatus == CalStatus.Failed || !string.IsNullOrWhiteSpace(HumanDateEnteredByUser_ErrorMSg))
+            {
+                <p>
+                    <b>
+                        Please check your input.
+                    </b>
+
+                </p>
+                <p>
+                    @HumanDateEnteredByUser_ErrorMSg
+                </p>
+            }
+
+        </div>
+    </div>
+
+
+
+
+
+
+
+
+
+</div>
+
+@code {
+    public bool CurrentTimeInSec_InFocus { get; set; }
+    public long CurrentTimeInSec { get; set; }
+
+    private Timer timer;
+    private Blazored.Localisation.Services.IBrowserDateTime _IBrowserDateTime;
+
+
+    protected override async void OnInitialized()
+    {
+
+        _IBrowserDateTime = (await browserDateTimeProvider.GetInstance());
+        var currentDateTime = DateTime.UtcNow;
+        EpochEnteredByUser = currentDateTime.ToSec().ToString();
+        HumanDateEnteredByUser = new HumanDate
+        {
+            Day = currentDateTime.Day,
+            Hour = int.Parse(currentDateTime.ToString("hh", CultureInfo.InvariantCulture)),
+            Year = currentDateTime.Year,
+            Minute = currentDateTime.Minute,
+            Month = currentDateTime.Month,
+            Second = currentDateTime.Second,
+            LocalGMT = "GMT",
+            AMPM = currentDateTime.ToString("tt", CultureInfo.InvariantCulture)
+        };
+        timer = new Timer(TimerCallback, null, 0, 1000);
+    }
+
+    private void TimerCallback(object state)
+    {
+        if (!CurrentTimeInSec_InFocus)
+        {
+            CurrentTimeInSec = DateTime.UtcNow.ToSec();
+            base.StateHasChanged();
+        }
+    }
+
+    enum CalStatus
+    {
+        None,
+        Failed,
+        Success
+    }
+    enum EpochType
+    {
+        Second,
+        MilliSecond
+    }
+
+    private string EpochEnteredByUser { get; set; }
+    private CalStatus EpochEnteredByUser_CalcStatus { get; set; }
+    private string EpochEnteredByUser_Type { get; set; }
+    private DateTime EpochEnteredByUser_HumanReadable_Local { get; set; }
+    private DateTime EpochEnteredByUser_HumanReadable_GMT { get; set; }
+    private string EpochEnteredByUser_DifferenceWithCurrent { get; set; }
+
+    private void CalculateTimestampToHumanDate()
+    {
+
+        EpochEnteredByUser = EpochEnteredByUser?.ToUpper().Trim();
+
+        var EpochEnteredByUser_InLong = 0L;
+
+        if (long.TryParse(EpochEnteredByUser, out EpochEnteredByUser_InLong) || long.TryParse(EpochEnteredByUser, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out EpochEnteredByUser_InLong))
+        {
+            if (EpochEnteredByUser_InLong <= 99999999999)
+            {
+                EpochEnteredByUser_Type = " seconds :";
+
+                EpochEnteredByUser_HumanReadable_GMT = EpochEnteredByUser_InLong.SecToDateTime();
+
+                EpochEnteredByUser_HumanReadable_Local = EpochEnteredByUser_HumanReadable_GMT.Add(_IBrowserDateTime.LocalTimeZoneInfo.BaseUtcOffset);
+
+                var diffInSec = CurrentTimeInSec - EpochEnteredByUser_InLong;
+
+                EpochEnteredByUser_DifferenceWithCurrent = EpochHelper.GetTimeDiffMessage((TimeSpan.FromSeconds(Math.Abs(diffInSec))), diffInSec > 0);
+                EpochEnteredByUser_CalcStatus = CalStatus.Success;
+            }
+            else if (EpochEnteredByUser_InLong <= 99999999999999)
+            {
+                EpochEnteredByUser_Type = " milliseconds :";
+
+                EpochEnteredByUser_HumanReadable_GMT = EpochEnteredByUser_InLong.MilliSecToDateTime();
+
+                EpochEnteredByUser_HumanReadable_Local = EpochEnteredByUser_HumanReadable_GMT.Add(_IBrowserDateTime.LocalTimeZoneInfo.BaseUtcOffset);
+
+                var diffInSec = CurrentTimeInSec - EpochEnteredByUser_InLong / 1000;
+
+                EpochEnteredByUser_DifferenceWithCurrent = EpochHelper.GetTimeDiffMessage((TimeSpan.FromSeconds(Math.Abs(diffInSec))), diffInSec > 0);
+                EpochEnteredByUser_CalcStatus = CalStatus.Success;
+            }
+            else if (EpochEnteredByUser_InLong <= 999999999999999)
+            {
+                EpochEnteredByUser_Type = " microseconds (1/1,000,000 second) :";
+
+                EpochEnteredByUser_HumanReadable_GMT = (EpochEnteredByUser_InLong / 1000).MilliSecToDateTime();
+
+                EpochEnteredByUser_HumanReadable_Local = EpochEnteredByUser_HumanReadable_GMT.Add(_IBrowserDateTime.LocalTimeZoneInfo.BaseUtcOffset);
+
+                var diffInSec = CurrentTimeInSec - EpochEnteredByUser_InLong / 1000000;
+
+                EpochEnteredByUser_DifferenceWithCurrent = EpochHelper.GetTimeDiffMessage((TimeSpan.FromSeconds(Math.Abs(diffInSec))), diffInSec > 0);
+                EpochEnteredByUser_CalcStatus = CalStatus.Success;
+            }
+            else //if (EpochEnteredByUser_InLong <= 9999999999999999)
+            {
+                EpochEnteredByUser_Type = " nanoseconds (1 billionth of a second) :";
+
+                EpochEnteredByUser_HumanReadable_GMT = (EpochEnteredByUser_InLong / 1000000).MilliSecToDateTime();
+
+                EpochEnteredByUser_HumanReadable_Local = EpochEnteredByUser_HumanReadable_GMT.Add(_IBrowserDateTime.LocalTimeZoneInfo.BaseUtcOffset);
+
+                var diffInSec = CurrentTimeInSec - EpochEnteredByUser_InLong / 1000000000;
+
+                EpochEnteredByUser_DifferenceWithCurrent = EpochHelper.GetTimeDiffMessage((TimeSpan.FromSeconds(Math.Abs(diffInSec))), diffInSec > 0);
+                EpochEnteredByUser_CalcStatus = CalStatus.Success;
+            }
+        }
+        else
+        {
+            EpochEnteredByUser_CalcStatus = CalStatus.Failed;
+        }
+    }
+
+
+
+    //-----------------------------------------------------------------------------------------
+
+    private class HumanDate
+    {
+        public int Year { get; set; }
+        public int Month { get; set; }
+        public int Day { get; set; }
+        public int Hour { get; set; }
+        public int Minute { get; set; }
+        public int Second { get; set; }
+        public string AMPM { get; set; }
+        public string LocalGMT { get; set; }
+    }
+
+    HumanDate HumanDateEnteredByUser { get; set; } = new HumanDate { };
+
+
+    private string HumanDateEnteredByUser_ErrorMSg { get; set; }
+
+    private CalStatus HumanDateEnteredByUser_CalcStatus { get; set; }
+    private DateTime HumanDateEnteredByUser_InUTC;
+    private DateTime HumanDateEnteredByUser_InLocal;
+    private long HumanDateEnteredByUser_EpochInSec { get; set; }
+    private long HumanDateEnteredByUser_EpochInMilliSec { get; set; }
+
+    private string HumanDateEnteredByUser_DifferenceWithCurrent { get; set; }
+    private void CalculateHumanDateToEpochTimestamp()
+    {
+        try
+        {
+            if (!ValidateHumanDateEnteredByUser())
+            {
+                HumanDateEnteredByUser_CalcStatus = CalStatus.Failed;
+                return;
+            }
+
+            HumanDateEnteredByUser_InUTC = new DateTime(HumanDateEnteredByUser.Year, HumanDateEnteredByUser.Month, HumanDateEnteredByUser.Day, (HumanDateEnteredByUser.Hour + (HumanDateEnteredByUser.AMPM == "PM" ? 12 : 0)), HumanDateEnteredByUser.Minute, HumanDateEnteredByUser.Second).Add((HumanDateEnteredByUser.LocalGMT == "Local" ? -_IBrowserDateTime.LocalTimeZoneInfo.BaseUtcOffset : TimeSpan.Zero));
+
+
+            Console.WriteLine(HumanDateEnteredByUser.SerializeObject());
+
+            Console.WriteLine($"HumanDateEnteredByUser_InUTC =>{HumanDateEnteredByUser_InUTC}");
+            HumanDateEnteredByUser_EpochInSec = HumanDateEnteredByUser_InUTC.ToSec();
+            HumanDateEnteredByUser_EpochInMilliSec = HumanDateEnteredByUser_InUTC.ToMilliSec();
+            HumanDateEnteredByUser_InLocal = HumanDateEnteredByUser_InUTC.Add(_IBrowserDateTime.LocalTimeZoneInfo.BaseUtcOffset);
+
+            var diffInSec = CurrentTimeInSec - HumanDateEnteredByUser_EpochInSec;
+
+            HumanDateEnteredByUser_DifferenceWithCurrent = EpochHelper.GetTimeDiffMessage((TimeSpan.FromSeconds(Math.Abs(diffInSec))), diffInSec > 0);
+
+            HumanDateEnteredByUser_CalcStatus = CalStatus.Success;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"CalculateHumanDateToEpochTimestamp => {ex.Message}");
+
+            HumanDateEnteredByUser_CalcStatus = CalStatus.Failed;
+        }
+    }
+
+    private bool ValidateHumanDateEnteredByUser()
+    {
+        if (HumanDateEnteredByUser.Year < 0 || HumanDateEnteredByUser.Year > 9999)
+        {
+            HumanDateEnteredByUser_ErrorMSg = "Invalid year. Allowed 0-9999";
+            return false;
+        }
+        if (HumanDateEnteredByUser.Month < 1 || HumanDateEnteredByUser.Month > 12)
+        {
+            HumanDateEnteredByUser_ErrorMSg = "Invalid month. Allowed 1-12";
+            return false;
+        }
+        if (HumanDateEnteredByUser.Day < 1 || HumanDateEnteredByUser.Day > 31)
+        {
+            HumanDateEnteredByUser_ErrorMSg = "Invalid day. Allowed 1-31";
+            return false;
+        }
+        if (HumanDateEnteredByUser.Hour < 1 || HumanDateEnteredByUser.Day > 12)
+        {
+            HumanDateEnteredByUser_ErrorMSg = "Invalid hour. Allowed 1-12";
+            return false;
+        }
+        if (HumanDateEnteredByUser.Minute < 0 || HumanDateEnteredByUser.Minute > 60)
+        {
+            HumanDateEnteredByUser_ErrorMSg = "Invalid minute. Allowed 0-60";
+            return false;
+        }
+        if (HumanDateEnteredByUser.Second < 0 || HumanDateEnteredByUser.Second > 60)
+        {
+            HumanDateEnteredByUser_ErrorMSg = "Invalid second. Allowed 0-60";
+            return false;
+        }
+        return true;
+    }
+
+    void OnAMPMChange(ChangeEventArgs e)
+    {
+        HumanDateEnteredByUser.AMPM = e.Value.ToString();
+        CalculateHumanDateToEpochTimestamp();
+    }
+
+    void OnLocalGMTChange(ChangeEventArgs e)
+    {
+        HumanDateEnteredByUser.LocalGMT = e.Value.ToString();
+        CalculateHumanDateToEpochTimestamp();
+    }
+
+    public void Dispose()
+    {
+        timer.Change(Timeout.Infinite, Timeout.Infinite);
+        timer.Dispose();
+
+    }
+}

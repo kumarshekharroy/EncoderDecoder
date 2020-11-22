@@ -1,0 +1,118 @@
+﻿@page "/json-validator-formatter"
+@inject IJSRuntime JSRuntime;
+@inject ILogger<JsonFormatter> _logger
+@inject IToastService toastService
+
+
+<div class="row text-left">
+    <div class="col-sm-11 my-2">
+        <div class="form-group">
+            <textarea autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" style="@(IsJSONValid?"":"background-color:#ffbaba")" class="form-control"  rows="@(InputStr.Length<=500?10:InputStr.Length<=1000?(InputStr.Length/50):25)"  placeholder="enter/paste json text here.." @bind:event="oninput" @bind="InputStr"></textarea>
+        </div>
+
+        <div class="form-group">
+            <button type="button" class="btn btn-primary mr-2" @onclick="()=>FormatJSON(false)">Format</button>
+            <button type="button" class="btn btn-secondary mr-2" @onclick="()=>FormatJSON(true)">Remove White Spaces</button>
+            <button type="button" class="btn btn-primary mr-2" @onclick="EscapeJSON">Escape String</button>
+            <button type="button" class="btn btn-secondary mr-2" @onclick="UnEscapeJSON">UnEscape String</button>
+            <button type="button" class="btn btn-danger mr-2" @onclick="()=>ResetInput()">Clear</button>
+            <button type="button" class="btn btn-outline-warning mr-2 " @onclick="async()=> await CopyToClipBoard()">  <span class="fas @(FontAwesomeIcons.Copy)"></span></button>
+            <button disabled type="button" class="btn btn-outline-dark mr-2">@InputStr.Length</button>
+        </div>
+    </div>
+</div>
+
+
+@code
+{
+
+    public bool IsJSONValid { get; set; }
+    public string InputStr { get; set; }
+    public string JsonTree { get; set; }
+    public int ScapingDepth { get; set; }
+    protected override void OnInitialized()
+    {
+
+        ResetInput(true);
+    }
+    private string ResetInput(bool pageload = false)
+    {
+        InputStr = pageload ? "{}" : string.Empty;
+        IsJSONValid = true;
+        return InputStr;
+    }
+
+    private void FormatJSON(bool removeSpaces)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(InputStr))
+            {
+                IsJSONValid = false;
+            }
+            else
+            {
+
+                var parsedObj = Newtonsoft.Json.JsonConvert.DeserializeObject(InputStr);
+                InputStr = parsedObj.SerializeObject(!removeSpaces);
+                IsJSONValid = true;
+            }
+
+        }
+        catch (Exception ex)
+        {
+            IsJSONValid = false;
+            _logger.LogError(ex.ToReleventInfo().SerializeObject());
+            toastService.ShowError($"Invalid JSON");
+        }
+    }
+
+    private void EscapeJSON()
+    {
+        try
+        {
+            if (Math.Abs(ScapingDepth) > 2)
+                return;
+
+            InputStr = Newtonsoft.Json.JsonConvert.ToString(InputStr) ?? ResetInput();
+            ScapingDepth++;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex.ToReleventInfo().SerializeObject());
+            toastService.ShowError($"Invalid string");
+        }
+    }
+    private void UnEscapeJSON()
+    {
+        try
+        {
+            if (ScapingDepth == 0)
+                return;
+
+            InputStr = JsonConvert.DeserializeObject<string>(InputStr) ?? ResetInput();
+            ScapingDepth--;
+        }
+        catch (Exception ex)
+        {
+            if (ex.GetType() == typeof(Newtonsoft.Json.JsonReaderException))
+                ScapingDepth = 0;
+            _logger.LogError(ex.ToReleventInfo().SerializeObject());
+            //toastService.ShowError($"Invalid String => {ex.Message}");
+        }
+    }
+    private async Task CopyToClipBoard()
+    {
+        if(string.IsNullOrWhiteSpace(InputStr))
+        { 
+            toastService.ShowError($"Nothing to copy");
+            return;
+        }
+        var response = await JSRuntime.CopyTextToClipboard(InputStr);
+        if (response)
+            toastService.ShowSuccess($"Copied to clipboard");
+        else
+            toastService.ShowError($"Copy failed");
+    } 
+
+}

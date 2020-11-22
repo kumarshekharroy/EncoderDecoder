@@ -1,0 +1,63 @@
+﻿@page "/string-length-calculator" 
+
+<div class="row text-left">
+    <div class="col-sm-11 my-2">
+        <div class="form-group">
+            <textarea class="form-control"  rows="@(InputStr.Length<=500?10:InputStr.Length<=1000?(InputStr.Length/50):25)" placeholder="enter/paste text here.." @bind:event="oninput" @bind="InputStr"></textarea>
+        </div>
+        <div class="form-group form-check">
+            <label class="form-check-label">
+                <input class="form-check-input" type="checkbox" @bind="IgnoreWhitespaces"> Ignore Whitespaces.
+            </label>
+        </div>
+
+        <div class="btn-group my-2" >
+            <button class="btn btn-info mr-2 @(StrLength> -1?"d-block":"d-none")" type="button"> Length : @StrLength</button>
+            <button class="btn btn-info   @(WordCount> -1?"d-block":"d-none")" type="button"> Word Count : @WordCount</button>
+        </div>
+         
+    </div>
+</div>
+
+
+@code
+{
+    private const int SpaceASCII = 32;
+
+    private string _InputStr=string.Empty;
+    private string InputStr { get { return _InputStr; } set { _InputStr = value; CalculateLength(); } }
+
+    private bool _IgnoreWhitespaces;
+    private bool IgnoreWhitespaces { get { return _IgnoreWhitespaces; } set { _IgnoreWhitespaces = value; CalculateLength(); } }
+
+    public int StrLength { get; set; } = -1;
+    public int WordCount { get; set; } = -1;
+    private bool ShowAlert { get { return StrLength > -1; } }
+
+    private void CalculateLength()
+    {
+        if (string.IsNullOrWhiteSpace(InputStr))
+        {
+            StrLength = -1;
+            WordCount = -1;
+            return;
+        }
+        WordCount = InputStr.Split(" ",StringSplitOptions.RemoveEmptyEntries).Count();
+        if (!IgnoreWhitespaces)
+        {
+            StrLength = InputStr.Length;
+            return;
+        }
+
+        int count = 0;
+        foreach (var character in InputStr)
+        {
+            if (character == SpaceASCII)
+                continue;
+            count++;
+
+        }
+        StrLength = count;
+    }
+
+}

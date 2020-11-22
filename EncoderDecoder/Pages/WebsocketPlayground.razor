@@ -1,0 +1,219 @@
+﻿@page "/websocket-playground"
+
+@using System.Net.WebSockets
+@using System.Text
+@using System.Threading
+@*@implements IDisposable*@
+@inject IToastService toastService
+
+@inject ILogger<WebsocketPlayground> _logger
+
+<div class="row text-left my-3">
+    <div class="col-sm-12 my-3">
+        <div class="form-inline">
+            <div class="input-group mr-2">
+                <div class="input-group-prepend">
+                    <span class="input-group-text" id="basic-addon2">@WS_Scheme</span>
+                </div>
+                <input type="text" class="form-control" maxlength="250" spellcheck="false" disabled="@(webSocketObj?.State == WebSocketState.Open)" autocomplete="off" @bind="WS_URL" placeholder="Endpoint without `ws://` or `wss://`">
+            </div>
+            <div class="checkbox mr-2">
+                <label><input type="checkbox" disabled="@(webSocketObj?.State == WebSocketState.Open)" @bind="@WS_URL_IsSecure">Secure</label>
+            </div>
+            @if (webSocketObj?.State == WebSocketState.Open)
+            {
+                <button type="button" class="mr-2 btn btn-danger" @onclick="async()=>await ConnectAsync(false)">Close</button>
+            }
+            else
+            {
+                <button type="button" disabled="@string.IsNullOrWhiteSpace(WS_URL)" class="mr-2 btn btn@(webSocketObj?.State==WebSocketState.Connecting?"-warning":"-success")" @onclick="async()=>await ConnectAsync(true)">@(webSocketObj?.State == WebSocketState.Connecting ? "Connecting" : "Connect")</button>
+            }
+        </div>
+
+        <div class="form-inline my-2">
+            <label>Connection Status : <b>@(webSocketObj?.State==WebSocketState.Open?"Open":webSocketObj?.State==WebSocketState.Connecting?"Connecting":"Closed") </b></label>
+        </div>
+
+    </div>
+    <div class="col-sm-6 my-3">
+        <div class="form-group">
+            <textarea class="form-control" rows="7" placeholder="enter payload here.." @bind:event="oninput" @bind="OutBoundMessage"></textarea>
+        </div>
+        <div class="row text-center">
+            <div class="col">
+                <button disabled=@(webSocketObj?.State!=WebSocketState.Open || OutBoundMessage.Trim().Length== 0) class="btn btn-info  btn-block" type="button" @onclick="async ()=>await SendMessageAsync()"> Send </button>
+            </div>
+            <div class="col">
+                <button disabled=@(OutBoundMessage.Trim().Length== 0) class="btn btn-danger btn-block" type="button" @onclick="()=> { OutBoundMessage = string.Empty; }"> Clear </button>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 my-3">
+        <div class="form-group">
+            <textarea class="form-control" rows="7" placeholder="last message from websocket will appear here.." @bind:event="oninput" @bind="InboundMessage"></textarea>
+        </div>
+        <div class="row text-center">
+            <div class="col">
+                <button disabled=@(wsMessageEvents.Count== 0) class="btn btn-info  btn-block" type="button" @onclick="()=> { LoadTable = !LoadTable; }">  Show @(LoadTable?"Less":"More")  </button>
+            </div>
+            <div class="col">
+                <button disabled=@(InboundMessage.Trim().Length== 0) class="btn btn-danger btn-block" type="button" @onclick="()=> { InboundMessage = string.Empty; }"> Clear </button>
+            </div>
+        </div>
+    </div>
+
+    @if (LoadTable)
+    {
+
+        <div class="col-sm-12 my-3">
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th width="5%" scope="col">#</th>
+                        <th  width="10%" scope="col">Direction</th>
+                        <th  width="15%" scope="col">TimeStamp</th>
+                        <th  width="70%" scope="col">Payload</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ int i = 1;}
+                    @foreach (var item in wsMessageEvents.Reverse())
+                    {
+
+                        <tr class="table-@(item.InBound?"info":"success")">
+                            <th  width="5%" scope="row">@i</th>
+                            <td  width="10%">@(item.InBound?"In":"Out")</td>
+                            <td  width="15%">@(item.Time.ToString("HH:mm:ss.fff"))</td>
+                            <td  width="70%" style ="word-break:break-all;">
+                                <span style="font-family:monospace">
+@item.Message
+</span>
+                            </td>
+                        </tr>
+                        i++;
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+
+@code
+{
+    class WsMessageEvent
+    {
+        public DateTime Time { get; set; }
+        public bool InBound { get; set; }
+        public string Message { get; set; }
+    }
+
+    FixedSizedQueue<WsMessageEvent> wsMessageEvents = new FixedSizedQueue<WsMessageEvent>(20);
+    CancellationTokenSource disposalTokenSource = new CancellationTokenSource();
+    ClientWebSocket webSocketObj;
+
+    public bool LoadTable { get; set; }
+    public string WS_URL { get; set; } = "echo.websocket.org";
+    public string WS_Scheme { get { return WS_URL_IsSecure ? "wss://" : "ws://"; } set { } }
+    public bool WS_URL_IsSecure { get; set; } = true;
+
+    string OutBoundMessage = "ping";
+    string InboundMessage = string.Empty;
+
+    protected async Task ConnectAsync(bool establishconnection)
+    {
+        try
+        {
+            if (webSocketObj != null)
+            {
+                if (webSocketObj.State != WebSocketState.Closed)
+                    await webSocketObj.CloseAsync(WebSocketCloseStatus.NormalClosure, "Bye", disposalTokenSource.Token);
+            }
+            if (!establishconnection)
+            {
+                toastService.ShowWarning($"Websocket : Closing...");
+                return;
+            }
+
+            webSocketObj = new ClientWebSocket();
+            webSocketObj.Options.KeepAliveInterval = TimeSpan.FromMilliseconds(100);
+
+            if (WS_URL.Contains("://"))
+                WS_URL = WS_URL.Replace("wss://", string.Empty, StringComparison.OrdinalIgnoreCase).Replace("ws://", string.Empty, StringComparison.OrdinalIgnoreCase);
+
+            var uri = $"{(WS_URL_IsSecure ? "wss://" : "ws://")}{WS_URL}";
+
+            await webSocketObj.ConnectAsync(new Uri(uri), disposalTokenSource.Token);
+
+            wsMessageEvents.Enqueue(new WsMessageEvent { InBound = true, Time = DateTime.Now, Message = "Connected" });
+
+            _ = ReceiveLoop();
+        }
+        catch (Exception ex)
+        {
+            toastService.ShowWarning($"Websocket : Error => {ex.Message}.");
+        }
+    }
+
+    async Task SendMessageAsync()
+    {
+        if (webSocketObj == null || webSocketObj.State != WebSocketState.Open)
+        {
+            toastService.ShowError($"Websocket : Connection Is {(webSocketObj == null ? "Closed" : webSocketObj.State.ToString())}");
+            return;
+        }
+
+        var dataToSend = new ArraySegment<byte>(Encoding.UTF8.GetBytes(OutBoundMessage));
+        await webSocketObj.SendAsync(dataToSend, WebSocketMessageType.Text, true, disposalTokenSource.Token);
+
+        wsMessageEvents.Enqueue(new WsMessageEvent { InBound = false, Time = DateTime.Now, Message = OutBoundMessage });
+    }
+
+    async Task ReceiveLoop()
+    {
+
+        var buffer = new ArraySegment<byte>(new byte[1024]);
+        while (!disposalTokenSource.IsCancellationRequested)
+        {
+
+
+            // Note that the received block might only be part of a larger message. If this applies in your scenario,
+            // check the received.EndOfMessage and consider buffering the blocks until that property is true.
+            // Or use a higher-level library such as SignalR.
+            var received = await webSocketObj.ReceiveAsync(buffer, disposalTokenSource.Token);
+
+            switch (received.MessageType)
+            {
+                case WebSocketMessageType.Close:
+                    {
+                        wsMessageEvents.Enqueue(new WsMessageEvent { InBound = true, Time = DateTime.Now, Message = "Disconnected" });
+                        toastService.ShowError($"Websocket : Disconnected");
+                    }
+                    break;
+                case WebSocketMessageType.Text:
+                    {
+
+                        var receivedAsText = Encoding.UTF8.GetString(buffer.Array, 0, received.Count);
+
+                        wsMessageEvents.Enqueue(new WsMessageEvent { InBound = true, Time = DateTime.Now, Message = receivedAsText });
+                        InboundMessage = $"{receivedAsText}";
+                    }
+                    break;
+                case WebSocketMessageType.Binary:
+                    toastService.ShowWarning($"Websocket : Binary Message received.");
+                    break;
+            }
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        toastService.ShowWarning($"Websocket : Disposed.");
+        //disposalTokenSource.Cancel();
+        if (webSocketObj != null && webSocketObj.State != WebSocketState.Closed)
+            _ = webSocketObj.CloseAsync(WebSocketCloseStatus.NormalClosure, "Bye", CancellationToken.None);
+    }
+
+
+}

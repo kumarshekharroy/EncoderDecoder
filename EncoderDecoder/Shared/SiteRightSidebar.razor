@@ -1,0 +1,45 @@
+﻿@inject NavigationManager _NavigationManager
+@inject EncoderDecoder.Utilities.Pages _Pages 
+
+@code{
+    [Parameter]
+    public string SelectedPage { get; set; }
+    [Parameter]
+    public string SelectedGroup { get; set; }
+}
+<div class="row ml-2">
+    <div class="col-sm-12 mr-1 my-2">
+        @*<h4>Pages</h4>*@
+    </div>
+    <div class="col-sm-11 offset-1">
+        <div class="panel-group" id="accordion">
+            @foreach (var group_pages in _Pages.GetAllPages)
+            {
+                <div class="panel panel-default mb-1">
+                    <div class="panel-heading">
+                        <h6 class="panel-title">
+                            <a style="color:black; text-decoration:none" data-toggle="collapse" data-parent="#accordion" href="#@group_pages.Key">
+                                <img src="@group_pages.Value.Select(x=>x.Logo).FirstOrDefault()" class="icon" style="height:20px;width:20px;" />
+                                @group_pages.Key.Replace('_', ' ')
+                            </a>
+                        </h6>
+                    </div>
+                    <div id="@group_pages.Key" class="panel-collapse  in  @(group_pages.Key!=SelectedGroup? "collapse": "" )">
+                        <div class="panel-body">
+                            <table class="table table-hover table-sm">
+                                @foreach (var pageinfo in group_pages.Value)
+                                {
+                                    <tr style="background-color:@(pageinfo.Route==SelectedPage?"#fff":""); ">
+                                        <td>
+                                            <a style="text-decoration:none" href="@pageinfo.Route" title="@(pageinfo.Description)"> <img src="@pageinfo.Logo" class="icon" style="height:15px;width:15px;" />  @(pageinfo.Title) </a>
+                                        </td>
+                                    </tr>
+                                }
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div> 
+    </div>
+</div> 

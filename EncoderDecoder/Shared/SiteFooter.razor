@@ -1,0 +1,20 @@
+﻿
+
+@code {
+    public DateTime LoadedOn { get; set; }
+    protected override void OnInitialized()
+    {
+        LoadedOn = DateTime.Now;
+    }
+}
+<nav style="background-color:#ececec" class="navbar justify-content-center">
+    <div class="row">
+
+        <div class="col-sm-12 my-1">
+            Made by <a style="text-decoration:none;font-weight:700" href="http://shekharroy.com" target="_blank">Shekhar</a> with <span style="color:red">&hearts;</span>
+        </div>
+        @*<div class="col-sm-12  my-2">
+           Loaded on : @LoadedOn.ToString("MMM-dd hh:mm:ss.fff tt")
+        </div>*@
+    </div>
+</nav>
